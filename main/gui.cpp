@@ -270,7 +270,7 @@ void gui::Render() noexcept
 	static int tab_stack = 0;
 
 	static bool enable_markdown_output = true;
-	static bool recursive_search = false;
+	static bool recursive_search = true;
 	static bool enable_overwrite_mode = true;
 	static bool enable_heading = true;
 	static bool enable_fullpaths = false;
@@ -559,7 +559,6 @@ void gui::Render() noexcept
 			));
 			if (ImGui::Button("Generate Output", ImVec2(WIDTH - xPos - 10, 25 * 2)))
 			{
-				/*string time = "";*/
 				long ms1 = lance::getCurrentTime('m');
 				
 				std::string outputFileMaker = lance::getOutputFileName(outputLocation, outputFileName, enable_markdown_output);
@@ -573,18 +572,28 @@ void gui::Render() noexcept
 				outputFile << "\n";
 
 				// Heading
-				std::string heading = "List of Contents - ";
-				if (enable_markdown_output == true) {
-					heading = "## " + heading;
+				if (enable_heading == true) {
+					std::string heading = "List of Contents - ";
+					if (enable_markdown_output == true) {
+						heading = "## " + heading;
+					}
+					if (enable_markdown_output == true) {
+						heading += lance::doRegex(inputLocation, "\\\\", "\\\\");
+					}
+					else {
+						heading += inputLocation;
+					}
+					outputFile << heading + "\n\n";
 				}
-				heading += inputLocation;
-				outputFile << heading + "\n\n";
-
+				
 
 				lance::writeFile(
 					outputFile,
 					inputLocation,
 					seperator,
+					enable_markdown_output,
+					recursive_search,
+					enable_fullpaths,
 					tab_stack
 				);
 
@@ -623,6 +632,9 @@ void lance::writeFile(
 	std::ofstream& outputFile,
 	char inputLocation[],
 	std::string seperator,
+	bool enable_markdown,
+	bool recursive_search,
+	bool enable_fullpaths,
 	int& tab_stack
 ) 
 {
@@ -632,40 +644,52 @@ void lance::writeFile(
 	
 	try {
 		for (const auto& file : dirIter) {
-			if (file.is_directory()) 
-			{
-				// Writing Folder Name
-				const std::wstring currentPath = file.path().c_str();
-				string foldername = lance::handleUnicodeStrings(currentPath);
-				std::filesystem::path pp(foldername);
-				
-				foldername = pp.parent_path().filename().string() + "   --   " + lance::doRegex(foldername, "\\\\", "\\\\");
-				if (!outputFile.fail())
+			if (recursive_search == true) {
+				if (file.is_directory())
 				{
-					outputFile << tabs << "- " + foldername + "" << seperator;
+					// Writing Folder Name
+					const std::wstring currentPath = file.path().c_str();
+					string foldername = lance::handleUnicodeStrings(currentPath);
+					if (enable_fullpaths == false) {
+						std::filesystem::path pp(foldername);
+						foldername = pp.filename().string();
+					}
+					else {
+						if(enable_markdown == true) foldername = lance::doRegex(foldername, "\\\\", "\\\\");
+					}
+					
+					if (!outputFile.fail())
+					{
+						outputFile << tabs << "- " + foldername + "" << seperator;
+					}
+
+
+					std::filesystem::path p(file.path());
+					string newLocation = p.string();
+					char newArr[50000] = "";
+					strcpy_s(newArr, newLocation.c_str());
+
+
+					lance::increaseStack(tab_stack);
+					lance::writeFile(
+						outputFile,
+						newArr,
+						seperator,
+						enable_markdown,
+						recursive_search,
+						enable_fullpaths,
+						tab_stack
+					);
+					lance::decreaseStack(tab_stack);
+					continue;
 				}
-
-
-				std::filesystem::path p(file.path());
-				string newLocation = p.string();
-				char newArr[50000] = "";
-				strcpy_s(newArr, newLocation.c_str());
-
-
-				lance::increaseStack(tab_stack);
-				lance::writeFile(
-					outputFile,
-					newArr,
-					seperator,
-					tab_stack
-				);
-				lance::decreaseStack(tab_stack);
-				continue;
 			}
 
 			const std::wstring currentPath = file.path().c_str();
 			string filename = lance::handleUnicodeStrings(currentPath);
-			filename = lance::extractName(filename, false);
+			if (enable_fullpaths == false) {
+				filename = lance::extractName(filename, false);
+			}
 			if (!outputFile.fail())
 			{
 				outputFile << tabs << "`" + filename + "`" << seperator;
@@ -724,9 +748,6 @@ std::string lance::extractName(std::string str, bool pathVisible)
 std::string lance::doRegex(std::string str, std::string reg1, std::string reg2) {
 	return std::regex_replace(str, std::regex(reg1), reg2);
 }
-std::string lance::doRegexForSlash(std::string str) {
-	return std::regex_replace(str, std::regex("\\s*"), "\\\\");
-}
 
 std::string lance::getTabs(int stack) {
 	string tabs = "";
@@ -775,15 +796,10 @@ void lance::decreaseStack(int& stack){
 
 
 void lance::ltrim(std::string& s) {
-	s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
-		return !std::isspace(ch);
-		}));
+	s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {return !std::isspace(ch);}));
 }
 void lance::rtrim(std::string& s) {
-	s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
-		return !std::isspace(ch);
-		}).base(), s.end()
-			);
+	s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {return !std::isspace(ch);}).base(), s.end());
 }
 void lance::trim(std::string& s) {
 	rtrim(s);

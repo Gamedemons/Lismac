@@ -7,6 +7,9 @@ namespace lance
 		std::ofstream& outputFile, 
 		char inputLocation[], 
 		std::string seperator,
+		bool enable_markdown,
+		bool recursive_search,
+		bool enable_fullpaths,
 		int& tab_stack
 	);
 
@@ -21,7 +24,6 @@ namespace lance
 	std::string extractName(std::string str, bool pathVisible);
 
 	std::string doRegex(std::string str, std::string reg1, std::string reg2);
-	std::string doRegexForSlash(std::string str);
 
 	std::string getTabs(int stack);
 
@@ -40,5 +42,4 @@ namespace lance
 	void rtrim(std::string& s);
 	void trim(std::string& s);
 	bool isNumber(const std::string s);
-
 }
