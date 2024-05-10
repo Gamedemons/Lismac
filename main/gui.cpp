@@ -365,6 +365,15 @@ void gui::Render() noexcept
 	ImGui::Text("CT : %d ms", taskCompletionTime);
 
 
+	// Error Message
+	static char msgLabel[300] = "";
+	ImGui::SetCursorPos(ImVec2(
+		lance::toShint(xPos),
+		lance::toShint(yPos + (lGap * 16.5) + 2)
+	));
+	ImGui::Text("%s", msgLabel);
+
+
 	// Style Editor
 	ImGui::SetCursorPos(ImVec2(
 		lance::toShint(WIDTH - 300.0),
@@ -427,7 +436,7 @@ void gui::Render() noexcept
 		if (ImGui::BeginTabItem("Home - Configuration")) {
 
 			// File Picker
-			static char inputLocation[50000] = "D:\\Z";
+			static char inputLocation[50000] = "";
 
 			ImGui::SetCursorPos(ImVec2(
 				lance::toShint(xPos),
@@ -459,7 +468,7 @@ void gui::Render() noexcept
 			}
 			
 			// Output Picker
-			static char outputLocation[50000] = "C:\\Users\\GameDemons\\Documents\\Obsidian\\Obsidian Default\\Rough Work";
+			static char outputLocation[50000] = "";
 
 			ImGui::SetCursorPos(ImVec2(
 				lance::toShint(xPos),
@@ -560,53 +569,61 @@ void gui::Render() noexcept
 			if (ImGui::Button("Generate Output", ImVec2(WIDTH - xPos - 10, 25 * 2)))
 			{
 				long ms1 = lance::getCurrentTime('m');
-				
-				std::string outputFileMaker = lance::getOutputFileName(outputLocation, outputFileName, enable_markdown_output);
-				std::string seperator = "\n";
+				tab_stack = 0;
+				strcpy_s(msgLabel, "");
 
-				auto writeType = std::ios::app;
-				if (enable_overwrite_mode == true) {
-					writeType = std::ios::trunc;
-				}
-				std::ofstream outputFile(outputFileMaker, writeType);
-				outputFile << "\n";
+				try {
+					if (strlen(inputLocation) > 0 && strlen(outputLocation) > 0) {
+						std::string outputFileMaker = lance::getOutputFileName(outputLocation, outputFileName, enable_markdown_output);
+						std::string seperator = "\n";
 
-				// Heading
-				if (enable_heading == true) {
-					std::string heading = "List of Contents - ";
-					if (enable_markdown_output == true) {
-						heading = "## " + heading;
+						auto writeType = std::ios::app;
+						if (enable_overwrite_mode == true) {
+							writeType = std::ios::trunc;
+						}
+						std::ofstream outputFile(outputFileMaker, writeType);
+						outputFile << "\n";
+
+						// Heading
+						if (enable_heading == true) {
+							std::string heading = "List of Contents - ";
+							if (enable_markdown_output == true) {
+								heading = "## " + heading;
+							}
+							if (enable_markdown_output == true) {
+								heading += lance::doRegex(inputLocation, "\\\\", "\\\\");
+							}
+							else {
+								heading += inputLocation;
+							}
+							outputFile << heading + "\n\n";
+						}
+
+
+						lance::writeFile(
+							outputFile,
+							inputLocation,
+							seperator,
+							enable_markdown_output,
+							recursive_search,
+							enable_fullpaths,
+							tab_stack
+						);
+
+
+						long ms2 = lance::getCurrentTime('m');
+						taskCompletionTime = ms2 - ms1;
+						if (enable_tct == true) {
+							outputFile << seperator << "\n\nCompletion Time : " << to_string(ms2 - ms1) << "ms" << seperator;
+						}
+
+						outputFile.close();
 					}
-					if (enable_markdown_output == true) {
-						heading += lance::doRegex(inputLocation, "\\\\", "\\\\");
-					}
-					else {
-						heading += inputLocation;
-					}
-					outputFile << heading + "\n\n";
 				}
-				
-
-				lance::writeFile(
-					outputFile,
-					inputLocation,
-					seperator,
-					enable_markdown_output,
-					recursive_search,
-					enable_fullpaths,
-					tab_stack
-				);
-
-
-				long ms2 = lance::getCurrentTime('m');
-				taskCompletionTime = ms2 - ms1;
-				if (enable_tct == true) {
-					outputFile << seperator << "\n\nCompletion Time : " << to_string(ms2 - ms1) << "ms" << seperator;
+				catch (const std::exception& e) {
+					strcpy_s(msgLabel, "Error : Invalid Input or Output Path");
 				}
-
-				outputFile.close();
 			}
-
 			ImGui::EndTabItem();
 		}
 
@@ -706,11 +723,9 @@ vector<string> lance::getFileNames(char path[]) {
 	vector<string> files;
 
 	for (const auto& file : dirIter) {
-		/*if (!file.is_directory()) {*/
-			const std::wstring currentPath = file.path().c_str();
-			string output = lance::handleUnicodeStrings(currentPath);
-			files.push_back(output);
-		//}
+		const std::wstring currentPath = file.path().c_str();
+		string output = lance::handleUnicodeStrings(currentPath);
+		files.push_back(output);
 	}
 
 	return files;
